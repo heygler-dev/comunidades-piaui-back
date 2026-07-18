@@ -1,0 +1,19 @@
+# Postgres local para desenvolvimento (porta host 5434).
+# Uso: docker compose -f docker-compose.dev.yml up -d
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: premio-piaui-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: premio
+      POSTGRES_PASSWORD: premio123
+      POSTGRES_DB: premio_piaui
+    ports:
+      - '5434:5432'
+    volumes:
+      - premio_piaui_data:/var/lib/postgresql/data
+
+volumes:
+  premio_piaui_data:

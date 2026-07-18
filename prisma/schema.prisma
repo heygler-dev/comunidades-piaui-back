@@ -1,0 +1,604 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum FasePremio {
+  FASE_1_CADASTRO
+  FASE_2_INDICACOES
+  FASE_3_VOTO_POPULAR
+  FASE_3_COLEGIO_SELETOR
+  FASE_4_VOTO_POPULAR
+  FASE_5_APURACAO
+}
+
+enum TipoConvite {
+  LIDER
+  STARTUP
+}
+
+enum StatusParticipante {
+  ATIVO
+  PENDENTE
+}
+
+enum StatusInscricaoStartup {
+  RASCUNHO
+  PENDENTE
+  ATIVO
+  CANCELADO
+}
+
+enum OrigemCadastro {
+  PORTAL
+  MANUAL
+  IMPORTACAO
+}
+
+enum TipoLider {
+  SEMENTE
+  COMUNITARIO
+}
+
+enum StatusIndicacao {
+  ATIVA
+  CANCELADA
+}
+
+enum StatusSelecaoColegio {
+  EM_ANALISE
+  AVANCADA
+  REJEITADA
+  ABSTENCAO
+}
+
+enum TipoAuditoria {
+  VOTO
+  INDICACAO
+  SELECAO_COLEGIO
+  FASE_ALTERADA
+  RESULTADO_PUBLICADO
+  LOGIN
+  DADOS_ALTERADOS
+}
+
+enum PapelAuditoria {
+  ADMIN
+  LIDER
+  EMPREENDEDOR
+  SISTEMA
+}
+
+enum StatusTestemunhaApuracao {
+  CONVITE_PENDENTE
+  CONFIRMADA
+  RECUSADA
+}
+
+enum StatusSolicitacao {
+  PENDENTE
+  APROVADA
+  REJEITADA
+}
+
+enum TipoSolicitacaoCadastro {
+  LIDER
+  STARTUP
+}
+
+model Edicao {
+  id                      String     @id @default(uuid())
+  nome                    String
+  ano                     Int
+  faseAtual               FasePremio @default(FASE_1_CADASTRO) @map("fase_atual")
+  votacaoAberta           Boolean    @default(false) @map("votacao_aberta")
+  indicacoesAbertas       Boolean    @default(false) @map("indicacoes_abertas")
+  colegioHabilitado       Boolean    @default(false) @map("colegio_habilitado")
+  xLideresColegio         Int        @default(1) @map("x_lideres_colegio")
+  nFinalistasPorCategoria Int        @default(3) @map("n_finalistas_por_categoria")
+  cotasRegionaisAtivas    Boolean    @default(false) @map("cotas_regionais_ativas")
+  cotaMinCapital          Int        @default(0) @map("cota_min_capital")
+  cotaMinInterior         Int        @default(0) @map("cota_min_interior")
+  /// Cidades consideradas capital (separadas por vírgula). Default: Teresina.
+  cidadesCapital          String     @default("Teresina") @map("cidades_capital")
+  /// Critérios textuais do regulamento (markdown) da edição ativa.
+  criteriosMd             String?    @map("criterios_md") @db.Text
+  indicacoesInicio        DateTime?  @map("indicacoes_inicio")
+  indicacoesFim           DateTime?  @map("indicacoes_fim")
+  ativa                   Boolean    @default(true)
+  createdAt               DateTime   @default(now()) @map("created_at")
+
+  comunidades       Comunidade[]
+  convites          Convite[]
+  pessoas           Pessoa[]
+  lideres           Lider[]
+  linksComunidade   LinkComunidade[]
+  inscricoesStartup InscricaoStartup[]
+  categorias        Categoria[]
+  finalistas        Finalista[]
+  votos             Voto[]
+  importacoesLote   ImportacaoLote[]
+  badges            StartupComunidadeBadge[]
+  indicacoes        Indicacao[]
+  membrosColegio    MembroColegio[]
+  selecoesColegio   SelecaoColegio[]
+  resultados        ResultadoCategoria[]
+  atas              AtaApuracao[]
+  auditorias        AuditoriaEvento[]
+  solicitacoes      SolicitacaoCadastro[]
+  testemunhas       TestemunhaApuracao[]
+  regulamentoVersoes RegulamentoVersao[]
+
+  @@map("edicoes")
+}
+
+/// Snapshot versionado das regras públicas (categorias, X, N, cotas, critérios).
+model RegulamentoVersao {
+  id           String   @id @default(uuid())
+  edicaoId     String   @map("edicao_id")
+  versao       Int
+  criteriosMd  String   @map("criterios_md") @db.Text
+  snapshot     Json
+  publicadaEm  DateTime @default(now()) @map("publicada_em")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  edicao Edicao @relation(fields: [edicaoId], references: [id])
+
+  @@unique([edicaoId, versao])
+  @@index([edicaoId, publicadaEm])
+  @@map("regulamento_versoes")
+}
+
+/// Identidade única por CPF na edição. Pode ser líder em várias comunidades
+/// e/ou responsável de startup — o voto continua 1 por CPF.
+model Pessoa {
+  id           String    @id @default(uuid())
+  edicaoId     String    @map("edicao_id")
+  cpf          String
+  nome         String
+  email        String
+  telefone     String?
+  senhaHash    String    @map("senha_hash")
+  lgpdAceitoEm DateTime? @map("lgpd_aceito_em")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  edicao            Edicao             @relation(fields: [edicaoId], references: [id])
+  lideres           Lider[]
+  inscricoesStartup InscricaoStartup[]
+  votos             Voto[]
+
+  @@unique([edicaoId, cpf])
+  @@unique([edicaoId, email])
+  @@map("pessoas")
+}
+
+model UsuarioAdmin {
+  id        String   @id @default(uuid())
+  nome      String
+  email     String   @unique
+  senhaHash String   @map("senha_hash")
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  comunidadesCriadas Comunidade[]         @relation("ComunidadeCriadaPor")
+  convitesCriados    Convite[]            @relation("ConviteCriadoPorAdmin")
+  importacoesLote    ImportacaoLote[]
+  resultadosValidados ResultadoCategoria[] @relation("ResultadoValidadoPor")
+
+  @@map("usuarios_admin")
+}
+
+model Comunidade {
+  id                   String   @id @default(uuid())
+  edicaoId             String   @map("edicao_id")
+  nome                 String
+  descricao            String?
+  institucional        Boolean  @default(false)
+  /// Cidade sede
+  cidade               String
+  estado               String   @default("PI")
+  /// Cidades de atuação no Piauí (texto livre / lista separada por vírgula ou linha)
+  cidadesAtuacao       String?  @map("cidades_atuacao")
+  logoUrl              String?  @map("logo_url")
+  slug                 String
+  status               String   @default("ativa")
+  isPadraoStartupPiaui Boolean  @default(false) @map("is_padrao_startup_piaui")
+  createdBy            String?  @map("created_by")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  edicao            Edicao                   @relation(fields: [edicaoId], references: [id])
+  criador           UsuarioAdmin?            @relation("ComunidadeCriadaPor", fields: [createdBy], references: [id])
+  convites          Convite[]
+  lideres           Lider[]
+  linksComunidade   LinkComunidade[]
+  inscricoesStartup InscricaoStartup[]
+  badges            StartupComunidadeBadge[]
+  membrosColegio    MembroColegio[]
+  solicitacoes      SolicitacaoCadastro[]
+
+  @@unique([edicaoId, slug])
+  @@map("comunidades")
+}
+
+model Convite {
+  id             String      @id @default(uuid())
+  edicaoId       String      @map("edicao_id")
+  comunidadeId   String      @map("comunidade_id")
+  tipo           TipoConvite
+  token          String      @unique
+  criadoPorId    String?     @map("criado_por_id")
+  liderCriadorId String?     @map("lider_criador_id")
+  expiraEm       DateTime?   @map("expira_em")
+  usadoEm        DateTime?   @map("usado_em")
+  ativo          Boolean     @default(true)
+  createdAt      DateTime    @default(now()) @map("created_at")
+
+  edicao       Edicao        @relation(fields: [edicaoId], references: [id])
+  comunidade   Comunidade    @relation(fields: [comunidadeId], references: [id])
+  criadoPor    UsuarioAdmin? @relation("ConviteCriadoPorAdmin", fields: [criadoPorId], references: [id])
+  liderCriador Lider?        @relation("ConviteCriadoPorLider", fields: [liderCriadorId], references: [id])
+  lideres      Lider[]
+
+  @@map("convites")
+}
+
+model Lider {
+  id           String             @id @default(uuid())
+  edicaoId     String             @map("edicao_id")
+  pessoaId     String             @map("pessoa_id")
+  comunidadeId String             @map("comunidade_id")
+  conviteId    String?            @map("convite_id")
+  /// Denormalizado da Pessoa para listagens/admin (fonte de verdade: Pessoa)
+  nome         String
+  cpf          String
+  email        String
+  telefone     String
+  senhaHash    String             @map("senha_hash")
+  tipoLider    TipoLider          @default(SEMENTE) @map("tipo_lider")
+  nomeadoPorId String?            @map("nomeado_por_id")
+  status       StatusParticipante @default(ATIVO)
+  lgpdAceitoEm DateTime           @map("lgpd_aceito_em")
+  ativadoEm    DateTime           @default(now()) @map("ativado_em")
+  createdAt    DateTime           @default(now()) @map("created_at")
+
+  edicao            Edicao             @relation(fields: [edicaoId], references: [id])
+  pessoa            Pessoa             @relation(fields: [pessoaId], references: [id])
+  comunidade        Comunidade         @relation(fields: [comunidadeId], references: [id])
+  convite           Convite?           @relation(fields: [conviteId], references: [id])
+  nomeadoPor        Lider?             @relation("LiderNomeacoes", fields: [nomeadoPorId], references: [id])
+  nomeados          Lider[]            @relation("LiderNomeacoes")
+  linksComunidade   LinkComunidade[]
+  inscricoesStartup InscricaoStartup[]
+  convitesCriados   Convite[]          @relation("ConviteCriadoPorLider")
+  membrosColegio    MembroColegio[]
+  indicacoes        Indicacao[]        @relation("IndicanteLider")
+  votos             Voto[]             @relation("VotoLider")
+  solicitacoesRevisadas SolicitacaoCadastro[] @relation("SolicitacaoRevisadaPor")
+
+  /// Uma pessoa pode ser líder em várias comunidades; não pode duplicar na mesma
+  @@unique([edicaoId, comunidadeId, cpf])
+  @@unique([edicaoId, pessoaId, comunidadeId])
+  @@index([edicaoId, cpf])
+  @@index([edicaoId, email])
+  @@map("lideres")
+}
+
+model LinkComunidade {
+  id           String   @id @default(uuid())
+  edicaoId     String   @map("edicao_id")
+  comunidadeId String   @map("comunidade_id")
+  liderId      String   @map("lider_id")
+  slug         String   @unique
+  ativo        Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  edicao            Edicao             @relation(fields: [edicaoId], references: [id])
+  comunidade        Comunidade         @relation(fields: [comunidadeId], references: [id])
+  lider             Lider              @relation(fields: [liderId], references: [id])
+  inscricoesStartup InscricaoStartup[]
+
+  @@map("links_comunidade")
+}
+
+model InscricaoStartup {
+  id                  String                 @id @default(uuid())
+  edicaoId            String                 @map("edicao_id")
+  comunidadeId        String                 @map("comunidade_id")
+  liderId             String?                @map("lider_id")
+  linkComunidadeId    String?                @map("link_comunidade_id")
+  pessoaId            String?                @map("pessoa_id")
+  responsavelNome     String?                @map("responsavel_nome")
+  responsavelCpf      String?                @map("responsavel_cpf")
+  responsavelTelefone String?                @map("responsavel_telefone")
+  responsavelEmail    String?                @map("responsavel_email")
+  senhaHash           String?                @map("senha_hash")
+  nomeStartup         String?                @map("nome_startup")
+  categoria           String?
+  cidadeOperacao      String?                @map("cidade_operacao")
+  site                String?
+  descricao           String?
+  logoUrl             String?                @map("logo_url")
+  pitchCurto          String?                @map("pitch_curto")
+  videoUrl            String?                @map("video_url")
+  metricasJson        Json?                  @map("metricas_json")
+  etapaAtual          Int                    @default(1) @map("etapa_atual")
+  status              StatusInscricaoStartup @default(RASCUNHO)
+  slugPublico         String?                @unique @map("slug_publico")
+  lgpdAceitoEm        DateTime?              @map("lgpd_aceito_em")
+  cpfUnicoConfirmado  Boolean                @default(false) @map("cpf_unico_confirmado")
+  confirmadoEm        DateTime?              @map("confirmado_em")
+  origem              OrigemCadastro         @default(PORTAL)
+  createdAt           DateTime               @default(now()) @map("created_at")
+  updatedAt           DateTime               @updatedAt @map("updated_at")
+
+  edicao              Edicao                   @relation(fields: [edicaoId], references: [id])
+  comunidade          Comunidade               @relation(fields: [comunidadeId], references: [id])
+  lider               Lider?                   @relation(fields: [liderId], references: [id])
+  linkComunidade      LinkComunidade?          @relation(fields: [linkComunidadeId], references: [id])
+  pessoa              Pessoa?                  @relation(fields: [pessoaId], references: [id])
+  finalistas          Finalista[]
+  badges              StartupComunidadeBadge[]
+  indicacoesRecebidas Indicacao[]              @relation("StartupIndicada")
+  indicacoesFeitas    Indicacao[]              @relation("IndicanteStartup")
+  selecoesColegio     SelecaoColegio[]
+  votos               Voto[]                   @relation("VotoEmpreendedor")
+  solicitacaoOrigem   SolicitacaoCadastro?
+
+  /// Uma pessoa (CPF) só pode ser responsável de uma startup por edição
+  @@unique([edicaoId, responsavelCpf])
+  @@index([pessoaId])
+  @@map("inscricoes_startup")
+}
+
+model StartupComunidadeBadge {
+  id                 String   @id @default(uuid())
+  edicaoId           String   @map("edicao_id")
+  inscricaoStartupId String   @map("inscricao_startup_id")
+  comunidadeId       String   @map("comunidade_id")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  edicao     Edicao           @relation(fields: [edicaoId], references: [id])
+  inscricao  InscricaoStartup @relation(fields: [inscricaoStartupId], references: [id])
+  comunidade Comunidade       @relation(fields: [comunidadeId], references: [id])
+
+  @@unique([inscricaoStartupId, comunidadeId])
+  @@map("startup_comunidade_badges")
+}
+
+model Categoria {
+  id       String @id @default(uuid())
+  edicaoId String @map("edicao_id")
+  nome     String
+  ordem    Int    @default(0)
+
+  edicao          Edicao               @relation(fields: [edicaoId], references: [id])
+  finalistas      Finalista[]
+  indicacoes      Indicacao[]
+  selecoesColegio SelecaoColegio[]
+  resultados      ResultadoCategoria[]
+
+  @@unique([edicaoId, nome])
+  @@map("categorias")
+}
+
+model Indicacao {
+  id                   String          @id @default(uuid())
+  edicaoId             String          @map("edicao_id")
+  categoriaId          String          @map("categoria_id")
+  inscricaoStartupId   String          @map("inscricao_startup_id")
+  indicanteLiderId     String?         @map("indicante_lider_id")
+  indicanteInscricaoId String?         @map("indicante_inscricao_id")
+  justificativa        String?
+  status               StatusIndicacao @default(ATIVA)
+  createdAt            DateTime        @default(now()) @map("created_at")
+
+  edicao             Edicao           @relation(fields: [edicaoId], references: [id])
+  categoria          Categoria        @relation(fields: [categoriaId], references: [id])
+  inscricaoStartup   InscricaoStartup @relation("StartupIndicada", fields: [inscricaoStartupId], references: [id])
+  indicanteLider     Lider?           @relation("IndicanteLider", fields: [indicanteLiderId], references: [id])
+  indicanteInscricao InscricaoStartup? @relation("IndicanteStartup", fields: [indicanteInscricaoId], references: [id])
+
+  @@index([edicaoId, categoriaId])
+  @@map("indicacoes")
+}
+
+model MembroColegio {
+  id           String   @id @default(uuid())
+  edicaoId     String   @map("edicao_id")
+  comunidadeId String   @map("comunidade_id")
+  liderId      String   @map("lider_id")
+  apontadoEm   DateTime @default(now()) @map("apontado_em")
+  ativo        Boolean  @default(true)
+
+  edicao          Edicao           @relation(fields: [edicaoId], references: [id])
+  comunidade      Comunidade       @relation(fields: [comunidadeId], references: [id])
+  lider           Lider            @relation(fields: [liderId], references: [id])
+  selecoesColegio SelecaoColegio[]
+
+  @@unique([edicaoId, liderId])
+  @@unique([edicaoId, comunidadeId, liderId])
+  @@map("membros_colegio")
+}
+
+model SelecaoColegio {
+  id                 String               @id @default(uuid())
+  edicaoId           String               @map("edicao_id")
+  categoriaId        String               @map("categoria_id")
+  inscricaoStartupId String               @map("inscricao_startup_id")
+  membroColegioId    String               @map("membro_colegio_id")
+  status             StatusSelecaoColegio
+  conflitoInteresse  Boolean              @default(false) @map("conflito_interesse")
+  createdAt          DateTime             @default(now()) @map("created_at")
+
+  edicao           Edicao           @relation(fields: [edicaoId], references: [id])
+  categoria        Categoria        @relation(fields: [categoriaId], references: [id])
+  inscricaoStartup InscricaoStartup @relation(fields: [inscricaoStartupId], references: [id])
+  membroColegio    MembroColegio    @relation(fields: [membroColegioId], references: [id])
+
+  @@unique([edicaoId, categoriaId, inscricaoStartupId, membroColegioId])
+  @@map("selecoes_colegio")
+}
+
+model Finalista {
+  id                 String   @id @default(uuid())
+  edicaoId           String   @map("edicao_id")
+  categoriaId        String   @map("categoria_id")
+  inscricaoStartupId String   @map("inscricao_startup_id")
+  metaResumo         String?  @map("meta_resumo")
+  ativo              Boolean  @default(true)
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  edicao           Edicao               @relation(fields: [edicaoId], references: [id])
+  categoria        Categoria            @relation(fields: [categoriaId], references: [id])
+  inscricaoStartup InscricaoStartup     @relation(fields: [inscricaoStartupId], references: [id])
+  votos            Voto[]
+  resultados       ResultadoCategoria[]
+
+  @@unique([edicaoId, categoriaId, inscricaoStartupId])
+  @@map("finalistas")
+}
+
+model Voto {
+  id                 String   @id @default(uuid())
+  edicaoId           String   @map("edicao_id")
+  finalistaId        String   @map("finalista_id")
+  votanteNome        String   @map("votante_nome")
+  cpf                String
+  pessoaId           String?  @map("pessoa_id")
+  votanteLiderId     String?  @map("votante_lider_id")
+  votanteInscricaoId String?  @map("votante_inscricao_id")
+  lgpdAceitoEm       DateTime @map("lgpd_aceito_em")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  edicao           Edicao            @relation(fields: [edicaoId], references: [id])
+  finalista        Finalista         @relation(fields: [finalistaId], references: [id])
+  pessoa           Pessoa?           @relation(fields: [pessoaId], references: [id])
+  votanteLider     Lider?            @relation("VotoLider", fields: [votanteLiderId], references: [id])
+  votanteInscricao InscricaoStartup? @relation("VotoEmpreendedor", fields: [votanteInscricaoId], references: [id])
+
+  @@unique([edicaoId, cpf])
+  @@map("votos")
+}
+
+model ResultadoCategoria {
+  id            String    @id @default(uuid())
+  edicaoId      String    @map("edicao_id")
+  categoriaId   String    @map("categoria_id")
+  finalistaId   String    @map("finalista_id")
+  totalVotos    Int       @map("total_votos")
+  publicadoEm   DateTime? @map("publicado_em")
+  validadoPorId String?   @map("validado_por_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  edicao      Edicao        @relation(fields: [edicaoId], references: [id])
+  categoria   Categoria     @relation(fields: [categoriaId], references: [id])
+  finalista   Finalista     @relation(fields: [finalistaId], references: [id])
+  validadoPor UsuarioAdmin? @relation("ResultadoValidadoPor", fields: [validadoPorId], references: [id])
+
+  @@unique([edicaoId, categoriaId])
+  @@map("resultados_categoria")
+}
+
+model AtaApuracao {
+  id          String    @id @default(uuid())
+  edicaoId    String    @map("edicao_id")
+  conteudoMd  String    @map("conteudo_md")
+  publicadaEm DateTime? @map("publicada_em")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  edicao Edicao @relation(fields: [edicaoId], references: [id])
+
+  @@map("atas_apuracao")
+}
+
+model TestemunhaApuracao {
+  id            String                    @id @default(uuid())
+  edicaoId      String                    @map("edicao_id")
+  nome          String
+  email         String
+  organizacao   String?
+  token         String                    @unique
+  status        StatusTestemunhaApuracao  @default(CONVITE_PENDENTE)
+  convidadaEm   DateTime                  @default(now()) @map("convidada_em")
+  confirmadaEm  DateTime?                 @map("confirmada_em")
+  observacao    String?
+  createdAt     DateTime                  @default(now()) @map("created_at")
+
+  edicao Edicao @relation(fields: [edicaoId], references: [id])
+
+  @@index([edicaoId, status])
+  @@map("testemunhas_apuracao")
+}
+
+model AuditoriaEvento {
+  id        String          @id @default(uuid())
+  edicaoId  String?         @map("edicao_id")
+  tipo      TipoAuditoria
+  atorPapel PapelAuditoria? @map("ator_papel")
+  atorId    String?         @map("ator_id")
+  cpfHash   String?         @map("cpf_hash")
+  payload   Json?
+  createdAt DateTime        @default(now()) @map("created_at")
+
+  edicao Edicao? @relation(fields: [edicaoId], references: [id])
+
+  @@index([edicaoId, tipo])
+  @@map("auditoria_eventos")
+}
+
+model SolicitacaoCadastro {
+  id                   String                  @id @default(uuid())
+  edicaoId             String                  @map("edicao_id")
+  comunidadeId         String                  @map("comunidade_id")
+  tipo                 TipoSolicitacaoCadastro
+  status               StatusSolicitacao       @default(PENDENTE)
+  nome                 String
+  cpf                  String
+  email                String
+  telefone             String
+  senhaHash            String                  @map("senha_hash")
+  lgpdAceitoEm         DateTime                @map("lgpd_aceito_em")
+  nomeStartup          String?                 @map("nome_startup")
+  categoria            String?
+  cidadeOperacao       String?                 @map("cidade_operacao")
+  site                 String?
+  descricao            String?
+  cpfUnicoConfirmado   Boolean                 @default(false) @map("cpf_unico_confirmado")
+  revisadoPorLiderId   String?                 @map("revisado_por_lider_id")
+  revisadoEm           DateTime?               @map("revisado_em")
+  motivoRejeicao       String?                 @map("motivo_rejeicao")
+  inscricaoStartupId   String?                 @unique @map("inscricao_startup_id")
+  liderCriadoId        String?                 @map("lider_criado_id")
+  createdAt            DateTime                @default(now()) @map("created_at")
+
+  edicao           Edicao            @relation(fields: [edicaoId], references: [id])
+  comunidade       Comunidade        @relation(fields: [comunidadeId], references: [id])
+  revisadoPor      Lider?            @relation("SolicitacaoRevisadaPor", fields: [revisadoPorLiderId], references: [id])
+  inscricaoStartup InscricaoStartup? @relation(fields: [inscricaoStartupId], references: [id])
+
+  @@index([comunidadeId, status, tipo])
+  @@index([edicaoId, cpf])
+  @@map("solicitacoes_cadastro")
+}
+
+model ImportacaoLote {
+  id          String   @id @default(uuid())
+  edicaoId    String   @map("edicao_id")
+  arquivoNome String   @map("arquivo_nome")
+  totalLinhas Int      @map("total_linhas")
+  importadas  Int
+  ignoradas   Int
+  errosJson   Json?    @map("erros_json")
+  adminId     String?  @map("admin_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  edicao Edicao        @relation(fields: [edicaoId], references: [id])
+  admin  UsuarioAdmin? @relation(fields: [adminId], references: [id])
+
+  @@map("importacoes_lote")
+}

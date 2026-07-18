@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ${APP_NAME:-premio}-postgres-${ENV_NAME:-prod}
+    environment:
+      POSTGRES_USER: ${DB_USER:-premio}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-premio}
+      POSTGRES_DB: ${DB_NAME:-premio_piaui}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-premio} -d ${DB_NAME:-premio_piaui}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${APP_NAME:-premio}-api:${ENV_NAME:-prod}
+    container_name: ${APP_NAME:-premio}-api-${ENV_NAME:-prod}
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-premio}:${DB_PASSWORD:-premio}@postgres:5432/${DB_NAME:-premio_piaui}?schema=public
+      JWT_SECRET: ${JWT_SECRET:-change-me}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      PORT: ${PORT:-3000}
+      # true = popula admin e dados de teste (apaga dados existentes)
+      RUN_SEED: ${RUN_SEED:-true}
+    ports:
+      - "${API_PORT:-3000}:3000"
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  uploads_data:

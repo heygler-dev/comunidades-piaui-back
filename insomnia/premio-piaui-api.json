@@ -1,0 +1,515 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2026-07-07T19:50:00.000Z",
+  "__export_source": "premio-back",
+  "resources": [
+    {
+      "_id": "wrk_premio_piaui",
+      "_type": "workspace",
+      "name": "Prêmio Piauí API",
+      "description": "Backend NestJS — importar no Insomnia: Application → Import → From File"
+    },
+    {
+      "_id": "env_base",
+      "_type": "environment",
+      "parentId": "wrk_premio_piaui",
+      "name": "Local",
+      "data": {
+        "base_url": "http://localhost:3000",
+        "access_token": "",
+        "convite_token": "a91f",
+        "slug_inscricao": "cerrado-vivo-a91f",
+        "inscricao_id": "",
+        "inscricao_tipo": "startup",
+        "comunidade_id": "",
+        "edicao_id": "",
+        "finalista_id": ""
+      },
+      "dataPropertyOrder": {
+        "&": [
+          "base_url",
+          "access_token",
+          "convite_token",
+          "slug_inscricao",
+          "inscricao_id",
+          "inscricao_tipo",
+          "comunidade_id",
+          "edicao_id",
+          "finalista_id"
+        ]
+      },
+      "color": null,
+      "isPrivate": false,
+      "metaSortKey": 1000000000000
+    },
+    {
+      "_id": "fld_auth",
+      "_type": "request_group",
+      "parentId": "wrk_premio_piaui",
+      "name": "Auth",
+      "description": "Autenticação do painel admin",
+      "metaSortKey": -3000000000000
+    },
+    {
+      "_id": "fld_public",
+      "_type": "request_group",
+      "parentId": "wrk_premio_piaui",
+      "name": "Público",
+      "description": "Portal público — sem autenticação",
+      "metaSortKey": -2000000000000
+    },
+    {
+      "_id": "fld_admin",
+      "_type": "request_group",
+      "parentId": "wrk_premio_piaui",
+      "name": "Admin",
+      "description": "Painel administrativo — Bearer JWT (rode Login primeiro)",
+      "metaSortKey": -1000000000000
+    },
+    {
+      "_id": "req_auth_login",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "Login",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/auth/login",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"admin@premiopiaui.org\",\n  \"senha\": \"admin123\"\n}"
+      },
+      "afterResponseScript": "const data = insomnia.response.json();\nif (data.access_token) {\n  insomnia.environment.set('access_token', data.access_token);\n}",
+      "metaSortKey": -3000000000000
+    },
+    {
+      "_id": "req_auth_me",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "Me (perfil admin)",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/v1/auth/me",
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.access_token }}"
+      },
+      "metaSortKey": -2999999999999
+    },
+    {
+      "_id": "req_pub_convite",
+      "_type": "request",
+      "parentId": "fld_public",
+      "name": "Convite líder (prefill)",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/v1/public/convites/{{ _.convite_token }}",
+      "metaSortKey": -2000000000000
+    },
+    {
+      "_id": "req_pub_link",
+      "_type": "request",
+      "parentId": "fld_public",
+      "name": "Link inscrição startup",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/v1/public/inscrever/{{ _.slug_inscricao }}",
+      "metaSortKey": -1999999999999
+    },
+    {
+      "_id": "req_pub_ativar_lider",
+      "_type": "request",
+      "parentId": "fld_public",
+      "name": "Ativar líder",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/public/lideres/ativar",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"token\": \"{{ _.convite_token }}\",\n  \"nome\": \"Maria Silva\",\n  \"cpf\": \"52998224725\",\n  \"telefone\": \"(86) 99999-0000\",\n  \"email\": \"maria@email.com\",\n  \"senha\": \"senha12345\",\n  \"lgpdAceito\": true\n}"
+      },
+      "metaSortKey": -1999999999998
+    },
+    {
+      "_id": "req_pub_create_inscricao",
+      "_type": "request",
+      "parentId": "fld_public",
+      "name": "Criar rascunho inscrição startup",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/public/inscricoes",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"slug\": \"{{ _.slug_inscricao }}\"\n}"
+      },
+      "afterResponseScript": "const data = insomnia.response.json();\nif (data.id) {\n  insomnia.environment.set('inscricao_id', data.id);\n}",
+      "metaSortKey": -1999999999997
+    },
+    {
+      "_id": "req_pub_get_inscricao",
+      "_type": "request",
+      "parentId": "fld_public",
+      "name": "Obter inscrição (retomar rascunho)",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/v1/public/inscricoes/{{ _.inscricao_id }}",
+      "metaSortKey": -1999999999996
+    },
+    {
+      "_id": "req_pub_etapa1",
+      "_type": "request",
+      "parentId": "fld_public",
+      "name": "Inscrição — etapa 1 (responsável)",
+      "method": "PATCH",
+      "url": "{{ _.base_url }}/api/v1/public/inscricoes/{{ _.inscricao_id }}/etapa/1",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"responsavelNome\": \"João Empreendedor\",\n  \"cpf\": \"39053344705\",\n  \"telefone\": \"(86) 98888-1111\",\n  \"email\": \"joao@startup.com\"\n}"
+      },
+      "metaSortKey": -1999999999995
+    },
+    {
+      "_id": "req_pub_etapa2",
+      "_type": "request",
+      "parentId": "fld_public",
+      "name": "Inscrição — etapa 2 (startup)",
+      "method": "PATCH",
+      "url": "{{ _.base_url }}/api/v1/public/inscricoes/{{ _.inscricao_id }}/etapa/2",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"nomeStartup\": \"Minha Startup PI\",\n  \"categoria\": \"Agtech\",\n  \"cidadeOperacao\": \"Teresina\",\n  \"site\": \"https://minhastartup.com\",\n  \"descricao\": \"Solução inovadora para o agronegócio piauiense com impacto comunitário.\"\n}"
+      },
+      "metaSortKey": -1999999999994
+    },
+    {
+      "_id": "req_pub_confirmar",
+      "_type": "request",
+      "parentId": "fld_public",
+      "name": "Inscrição — confirmar (etapa 3)",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/public/inscricoes/{{ _.inscricao_id }}/confirmar",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"lgpdAceito\": true,\n  \"cpfUnicoConfirmado\": true\n}"
+      },
+      "metaSortKey": -1999999999993
+    },
+    {
+      "_id": "req_pub_voto_categorias",
+      "_type": "request",
+      "parentId": "fld_public",
+      "name": "Voto — listar categorias",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/v1/public/voto/categorias",
+      "metaSortKey": -1999999999992
+    },
+    {
+      "_id": "req_pub_voto_finalistas",
+      "_type": "request",
+      "parentId": "fld_public",
+      "name": "Voto — listar finalistas",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/v1/public/voto/finalistas",
+      "parameters": [
+        { "name": "categoria", "value": "Agtech", "disabled": false }
+      ],
+      "metaSortKey": -1999999999991
+    },
+    {
+      "_id": "req_pub_voto_total",
+      "_type": "request",
+      "parentId": "fld_public",
+      "name": "Voto — total apurado",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/v1/public/voto/total",
+      "metaSortKey": -1999999999990
+    },
+    {
+      "_id": "req_pub_voto_registrar",
+      "_type": "request",
+      "parentId": "fld_public",
+      "name": "Voto — registrar",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/public/voto",
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"nome\": \"Votante Teste\",\n  \"cpf\": \"15350946056\",\n  \"categoria\": \"Agtech\",\n  \"finalistaId\": \"{{ _.finalista_id }}\",\n  \"lgpdAceito\": true\n}"
+      },
+      "metaSortKey": -1999999999989
+    },
+    {
+      "_id": "req_adm_stats",
+      "_type": "request",
+      "parentId": "fld_admin",
+      "name": "Inscrições — estatísticas",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/v1/admin/inscricoes/stats",
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.access_token }}"
+      },
+      "metaSortKey": -1000000000000
+    },
+    {
+      "_id": "req_adm_list_inscricoes",
+      "_type": "request",
+      "parentId": "fld_admin",
+      "name": "Inscrições — listar",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/v1/admin/inscricoes",
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.access_token }}"
+      },
+      "parameters": [
+        { "name": "tipo", "value": "todos", "disabled": false },
+        { "name": "q", "value": "", "disabled": true },
+        { "name": "page", "value": "1", "disabled": false },
+        { "name": "limit", "value": "50", "disabled": false }
+      ],
+      "metaSortKey": -999999999999
+    },
+    {
+      "_id": "req_adm_create_inscricao",
+      "_type": "request",
+      "parentId": "fld_admin",
+      "name": "Inscrições — cadastro manual",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/admin/inscricoes",
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.access_token }}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"nome\": \"Nova Startup\",\n  \"tipo\": \"startup\",\n  \"status\": \"Pendente\",\n  \"comunidade\": \"Coletivo Cerrado Vivo\",\n  \"cidade\": \"Teresina\",\n  \"email\": \"contato@nova.com\",\n  \"telefone\": \"(86) 99999-9999\"\n}"
+      },
+      "metaSortKey": -999999999998
+    },
+    {
+      "_id": "req_adm_update_inscricao",
+      "_type": "request",
+      "parentId": "fld_admin",
+      "name": "Inscrições — editar",
+      "method": "PUT",
+      "url": "{{ _.base_url }}/api/v1/admin/inscricoes/{{ _.inscricao_id }}",
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.access_token }}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"tipo\": \"{{ _.inscricao_tipo }}\",\n  \"nome\": \"Nome Atualizado\",\n  \"status\": \"Ativo\",\n  \"comunidade\": \"Coletivo Cerrado Vivo\",\n  \"cidade\": \"Teresina\",\n  \"email\": \"novo@email.com\",\n  \"telefone\": \"(86) 98888-8888\"\n}"
+      },
+      "metaSortKey": -999999999997
+    },
+    {
+      "_id": "req_adm_delete_inscricao",
+      "_type": "request",
+      "parentId": "fld_admin",
+      "name": "Inscrições — excluir",
+      "method": "DELETE",
+      "url": "{{ _.base_url }}/api/v1/admin/inscricoes/{{ _.inscricao_id }}",
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.access_token }}"
+      },
+      "parameters": [
+        { "name": "tipo", "value": "{{ _.inscricao_tipo }}", "disabled": false }
+      ],
+      "metaSortKey": -999999999996
+    },
+    {
+      "_id": "req_adm_import",
+      "_type": "request",
+      "parentId": "fld_admin",
+      "name": "Inscrições — importar planilha (básico)",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/admin/inscricoes/import",
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.access_token }}"
+      },
+      "body": {
+        "mimeType": "multipart/form-data",
+        "params": [
+          {
+            "name": "arquivo",
+            "value": "",
+            "description": "Selecione .xlsx, .xls ou .csv",
+            "type": "file",
+            "fileName": ""
+          }
+        ]
+      },
+      "metaSortKey": -999999999995
+    },
+    {
+      "_id": "req_adm_import_startups",
+      "_type": "request",
+      "parentId": "fld_admin",
+      "name": "Inscrições — importar startups (completo)",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/admin/inscricoes/import/startups",
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.access_token }}"
+      },
+      "body": {
+        "mimeType": "multipart/form-data",
+        "params": [
+          {
+            "name": "arquivo",
+            "value": "",
+            "description": "Planilha com nome, cpf, categoria, comunidade, etc.",
+            "type": "file",
+            "fileName": ""
+          }
+        ]
+      },
+      "metaSortKey": -999999999994
+    },
+    {
+      "_id": "req_adm_import_colunas",
+      "_type": "request",
+      "parentId": "fld_admin",
+      "name": "Inscrições — colunas da planilha startups",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/v1/admin/inscricoes/import/startups/colunas",
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.access_token }}"
+      },
+      "metaSortKey": -999999999993
+    },
+    {
+      "_id": "req_adm_list_comunidades",
+      "_type": "request",
+      "parentId": "fld_admin",
+      "name": "Comunidades — listar",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/v1/admin/comunidades",
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.access_token }}"
+      },
+      "metaSortKey": -999999999992
+    },
+    {
+      "_id": "req_adm_create_comunidade",
+      "_type": "request",
+      "parentId": "fld_admin",
+      "name": "Comunidades — criar",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/admin/comunidades",
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.access_token }}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"nome\": \"Nova Comunidade\",\n  \"cidade\": \"Teresina\",\n  \"estado\": \"PI\"\n}"
+      },
+      "afterResponseScript": "const data = insomnia.response.json();\nif (data.id) {\n  insomnia.environment.set('comunidade_id', data.id);\n}",
+      "metaSortKey": -999999999991
+    },
+    {
+      "_id": "req_adm_convite_lider",
+      "_type": "request",
+      "parentId": "fld_admin",
+      "name": "Comunidades — convite líder",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/admin/convites/lider",
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.access_token }}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"comunidadeId\": \"{{ _.comunidade_id }}\"\n}"
+      },
+      "afterResponseScript": "const data = insomnia.response.json();\nif (data.token) {\n  insomnia.environment.set('convite_token', data.token);\n}",
+      "metaSortKey": -999999999990
+    },
+    {
+      "_id": "req_adm_list_finalistas",
+      "_type": "request",
+      "parentId": "fld_admin",
+      "name": "Finalistas — listar",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/v1/admin/finalistas",
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.access_token }}"
+      },
+      "metaSortKey": -999999999989
+    },
+    {
+      "_id": "req_adm_create_finalista",
+      "_type": "request",
+      "parentId": "fld_admin",
+      "name": "Finalistas — criar",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/admin/finalistas",
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.access_token }}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"inscricaoStartupId\": \"{{ _.inscricao_id }}\",\n  \"categoria\": \"Agtech\",\n  \"metaResumo\": \"Teresina · Monitoramento de solo\"\n}"
+      },
+      "afterResponseScript": "const data = insomnia.response.json();\nif (data.id) {\n  insomnia.environment.set('finalista_id', data.id);\n}",
+      "metaSortKey": -999999999988
+    },
+    {
+      "_id": "req_adm_toggle_votacao",
+      "_type": "request",
+      "parentId": "fld_admin",
+      "name": "Edição — abrir/fechar votação",
+      "method": "PATCH",
+      "url": "{{ _.base_url }}/api/v1/admin/edicoes/{{ _.edicao_id }}/votacao",
+      "authentication": {
+        "type": "bearer",
+        "token": "{{ _.access_token }}"
+      },
+      "headers": [
+        { "name": "Content-Type", "value": "application/json" }
+      ],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"aberta\": true\n}"
+      },
+      "metaSortKey": -999999999987
+    }
+  ]
+}
