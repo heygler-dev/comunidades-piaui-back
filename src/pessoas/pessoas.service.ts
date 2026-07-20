@@ -14,6 +14,9 @@ type UpsertPessoaInput = {
   senhaPlain?: string;
   senhaHash?: string;
   lgpdAceitoEm?: Date | null;
+  mustChangePassword?: boolean;
+  /** Se true, só aplica senhaPlain quando a pessoa ainda precisa trocar a senha (ou é nova). */
+  onlyIfMustChangePassword?: boolean;
 };
 
 @Injectable()
@@ -56,6 +59,7 @@ export class PessoasService {
         telefone?: string | null;
         senhaHash?: string;
         lgpdAceitoEm?: Date | null;
+        mustChangePassword?: boolean;
       } = {
         nome: input.nome || existing.nome,
         telefone: input.telefone ?? existing.telefone,
@@ -67,10 +71,16 @@ export class PessoasService {
       if (input.lgpdAceitoEm && !existing.lgpdAceitoEm) {
         data.lgpdAceitoEm = input.lgpdAceitoEm;
       }
-      if (input.senhaPlain) {
+
+      const canSetPassword =
+        !input.onlyIfMustChangePassword || existing.mustChangePassword;
+      if (canSetPassword && input.senhaPlain) {
         data.senhaHash = await bcrypt.hash(input.senhaPlain, 10);
-      } else if (input.senhaHash) {
+      } else if (canSetPassword && input.senhaHash) {
         data.senhaHash = input.senhaHash;
+      }
+      if (input.mustChangePassword !== undefined && canSetPassword) {
+        data.mustChangePassword = input.mustChangePassword;
       }
 
       return this.prisma.pessoa.update({
@@ -100,6 +110,7 @@ export class PessoasService {
         email: input.email,
         telefone: input.telefone,
         senhaHash,
+        mustChangePassword: input.mustChangePassword ?? false,
         lgpdAceitoEm: input.lgpdAceitoEm,
       },
     });
@@ -135,6 +146,7 @@ export class PessoasService {
       nome: pessoa.nome,
       email: pessoa.email,
       cpfMascarado: this.maskCpf(pessoa.cpf),
+      mustChangePassword: pessoa.mustChangePassword,
       papeis: {
         lider: pessoa.lideres.length > 0,
         empreendedor: pessoa.inscricoesStartup.length > 0,

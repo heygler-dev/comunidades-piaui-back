@@ -163,6 +163,8 @@ model Pessoa {
   email        String
   telefone     String?
   senhaHash    String    @map("senha_hash")
+  /// true = senha temporária (ex.: importação); usuário deve trocar no primeiro acesso
+  mustChangePassword Boolean @default(false) @map("must_change_password")
   lgpdAceitoEm DateTime? @map("lgpd_aceito_em")
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")

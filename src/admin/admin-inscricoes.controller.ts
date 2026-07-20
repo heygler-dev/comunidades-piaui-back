@@ -63,6 +63,11 @@ export class AdminInscricoesController {
     return this.inscricoesService.deleteAdmin(id, query.tipo);
   }
 
+  @Post('import/startups/provisionar-acesso')
+  provisionarAcessoImportados() {
+    return this.inscricoesService.backfillAcessoImportados();
+  }
+
   @Post('import/startups')
   @UseInterceptors(FileInterceptor('arquivo'))
   importStartups(

@@ -142,6 +142,7 @@ export class AuthService {
         pessoaId: pessoa.id,
         nome: pessoa.nome,
         email: pessoa.email,
+        mustChangePassword: pessoa.mustChangePassword,
         papeis: {
           lider: pessoa.lideres.length > 0,
           empreendedor: pessoa.inscricoesStartup.length > 0,

@@ -22,6 +22,7 @@ async function main() {
   await prisma.categoria.deleteMany();
   await prisma.importacaoLote.deleteMany();
   await prisma.inscricaoStartup.deleteMany();
+  await prisma.solicitacaoCadastro.deleteMany();
   await prisma.linkComunidade.deleteMany();
   await prisma.lider.deleteMany();
   await prisma.pessoa.deleteMany();
@@ -30,7 +31,7 @@ async function main() {
   await prisma.usuarioAdmin.deleteMany();
   await prisma.edicao.deleteMany();
 
-  await prisma.edicao.create({
+  const edicao = await prisma.edicao.create({
     data: {
       nome: 'Prêmio Comunitário de Startups do Piauí',
       ano: 2026,
@@ -43,15 +44,57 @@ async function main() {
     },
   });
 
+  const categorias = [
+    'Agricultura e Pecuária',
+    'Alimentação e Bebidas',
+    'Automotivo e Mobilidade',
+    'Capital e Investimentos',
+    'Comércio eletrônico',
+    'Comunicação e Mídia',
+    'Construção e Imóveis',
+    'Crédito e Finanças',
+    'Educação',
+    'Energia',
+    'Esportes e Lazer',
+    'Gestão e Consultoria',
+    'Governo e Poder Público',
+    'Hotelaria e Turismo',
+    'Indústria e Transformação',
+    'Jogos e Entretenimento',
+    'Logística e Transportes',
+    'Moda e Vestuário',
+    'Motores e Equipamentos',
+    'Óleo e Gás',
+    'Saúde',
+    'Bem-estar',
+    'Segurança e Defesa',
+    'Seguros',
+    'Serviços profissionais',
+    'Meio ambiente',
+    'Sustentabilidade',
+    'Tecnologia da Informação',
+    'Telecomunicações',
+    'Varejo e Atacado',
+    'Outro',
+    'defesa e segurança',
+  ];
+
+  for (let i = 0; i < categorias.length; i++) {
+    await prisma.categoria.create({
+      data: { edicaoId: edicao.id, nome: categorias[i], ordem: i + 1 },
+    });
+  }
+
   await prisma.usuarioAdmin.create({
     data: {
       nome: 'Admin Startup Piauí',
       email: 'admin@premiopiaui.org',
-      senhaHash: await bcrypt.hash('admin123', 10),
+      senhaHash: await bcrypt.hash('Admin@2026*', 10),
     },
   });
 
   console.log('Seed concluído.');
+  console.log(`Categorias: ${categorias.length}`);
   console.log('Admin: admin@premiopiaui.org / admin123');
 }
 

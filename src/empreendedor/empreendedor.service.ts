@@ -41,6 +41,7 @@ export class EmpreendedorService {
       papeis: perfil?.papeis ?? { lider: false, empreendedor: true },
       startups: perfil?.startups ?? [],
       vinculosLider: perfil?.vinculosLider ?? [],
+      mustChangePassword: Boolean(perfil?.mustChangePassword),
     };
   }
 
@@ -147,7 +148,13 @@ export class EmpreendedorService {
     inscricaoId?: string,
   ) {
     const inscricao = await this.resolveInscricao(pessoaId, inscricaoId);
-    const hash = await bcrypt.hash(dto.senha, 10);
+    const senha = dto.senha.trim();
+    if (senha.toLowerCase() === 'minha-startup') {
+      throw new BadRequestException(
+        'Escolha uma senha diferente da senha temporária de importação.',
+      );
+    }
+    const hash = await bcrypt.hash(senha, 10);
     await this.prisma.$transaction([
       this.prisma.inscricaoStartup.update({
         where: { id: inscricao.id },
@@ -155,7 +162,7 @@ export class EmpreendedorService {
       }),
       this.prisma.pessoa.update({
         where: { id: pessoaId },
-        data: { senhaHash: hash },
+        data: { senhaHash: hash, mustChangePassword: false },
       }),
     ]);
     return { ok: true };

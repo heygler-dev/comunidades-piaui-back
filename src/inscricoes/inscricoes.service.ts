@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import * as bcrypt from 'bcrypt';
+import { createHash } from 'crypto';
 import * as XLSX from 'xlsx';
 import {
   OrigemCadastro,
@@ -27,6 +27,9 @@ import {
   InscricaoAdminStats,
   TipoInscricaoAdmin,
 } from './inscricoes.types';
+
+/** Senha temporária das startups importadas por planilha (primeiro acesso). */
+export const SENHA_PADRAO_IMPORTACAO = 'minha-startup';
 
 @Injectable()
 export class InscricoesService {
@@ -417,15 +420,41 @@ export class InscricoesService {
       ...(cpfRaw && !responsavelCpf ? { cpfResponsavel: cpfRaw } : {}),
     };
 
+    const email = dto.responsavelEmail?.trim();
+    let pessoaId: string | undefined;
+    let senhaHash: string | undefined;
+
+    if (email) {
+      const pessoa = await this.ensurePessoaImportacao({
+        edicaoId,
+        email,
+        cpfPreferido: responsavelCpf || normalizeCpf(cpfRaw || '') || undefined,
+        nome: dto.responsavelNome || dto.nomeStartup,
+        telefone: dto.responsavelTelefone,
+        lgpdAceitoEm: now,
+      });
+      pessoaId = pessoa.id;
+      senhaHash = pessoa.senhaHash;
+      if (!responsavelCpf) {
+        const cpfLivre = await this.prisma.inscricaoStartup.findFirst({
+          where: { edicaoId, responsavelCpf: pessoa.cpf },
+          select: { id: true },
+        });
+        if (!cpfLivre) responsavelCpf = pessoa.cpf;
+      }
+    }
+
     const startup = await this.prisma.inscricaoStartup.create({
       data: {
         edicaoId,
         comunidadeId: comunidade.id,
+        pessoaId,
         nomeStartup: dto.nomeStartup,
         responsavelNome: dto.responsavelNome || dto.nomeStartup,
         responsavelCpf,
         responsavelEmail: dto.responsavelEmail,
         responsavelTelefone: dto.responsavelTelefone,
+        senhaHash,
         categoria: dto.categoria,
         cidadeOperacao: dto.cidadeOperacao || comunidade.cidade,
         site: dto.site,
@@ -446,6 +475,190 @@ export class InscricoesService {
     });
 
     return this.toAdminItemFromStartup(startup);
+  }
+
+  /**
+   * Garante Pessoa com senha temporária para login do empreendedor.
+   * Reutiliza CPF/e-mail existentes sem sobrescrever senha já alterada.
+   */
+  private async ensurePessoaImportacao(input: {
+    edicaoId: string;
+    email: string;
+    cpfPreferido?: string;
+    nome: string;
+    telefone?: string;
+    lgpdAceitoEm: Date;
+  }) {
+    const email = input.email.trim();
+    const refreshTempPassword = (pessoa: {
+      id: string;
+      cpf: string;
+      email: string;
+      nome: string;
+      telefone: string | null;
+      mustChangePassword: boolean;
+    }) =>
+      this.pessoasService.upsertByCpf({
+        edicaoId: input.edicaoId,
+        cpf: pessoa.cpf,
+        nome: input.nome || pessoa.nome,
+        email: pessoa.email,
+        telefone: input.telefone ?? pessoa.telefone,
+        senhaPlain: SENHA_PADRAO_IMPORTACAO,
+        mustChangePassword: true,
+        onlyIfMustChangePassword: true,
+        lgpdAceitoEm: input.lgpdAceitoEm,
+      });
+
+    const byEmail = await this.pessoasService.findByEmail(input.edicaoId, email);
+    if (byEmail) {
+      if (byEmail.mustChangePassword) {
+        return refreshTempPassword(byEmail);
+      }
+      return byEmail;
+    }
+
+    let cpf = input.cpfPreferido;
+    if (cpf) {
+      const byCpf = await this.pessoasService.findByCpf(input.edicaoId, cpf);
+      if (byCpf) {
+        if (byCpf.email.toLowerCase() !== email.toLowerCase()) {
+          // CPF já ligado a outro e-mail — gera CPF provisório para este acesso
+          cpf = undefined;
+        } else if (byCpf.mustChangePassword) {
+          return refreshTempPassword(byCpf);
+        } else {
+          return byCpf;
+        }
+      }
+    }
+
+    if (!cpf) {
+      cpf = await this.allocateImportCpf(input.edicaoId, email);
+    }
+
+    return this.pessoasService.upsertByCpf({
+      edicaoId: input.edicaoId,
+      cpf,
+      nome: input.nome,
+      email,
+      telefone: input.telefone,
+      senhaPlain: SENHA_PADRAO_IMPORTACAO,
+      mustChangePassword: true,
+      onlyIfMustChangePassword: true,
+      lgpdAceitoEm: input.lgpdAceitoEm,
+    });
+  }
+
+  /**
+   * Provisiona/atualiza acesso (senha temporária) para startups já importadas.
+   */
+  async backfillAcessoImportados() {
+    const edicaoId = await this.edicoesService.getEdicaoAtivaId();
+    const rows = await this.prisma.inscricaoStartup.findMany({
+      where: {
+        edicaoId,
+        origem: OrigemCadastro.IMPORTACAO,
+        responsavelEmail: { not: null },
+        status: {
+          in: [StatusInscricaoStartup.ATIVO, StatusInscricaoStartup.PENDENTE],
+        },
+      },
+      select: {
+        id: true,
+        pessoaId: true,
+        responsavelEmail: true,
+        responsavelNome: true,
+        responsavelCpf: true,
+        responsavelTelefone: true,
+        nomeStartup: true,
+        lgpdAceitoEm: true,
+      },
+    });
+
+    let provisionados = 0;
+    let atualizados = 0;
+    let ignorados = 0;
+    const erros: string[] = [];
+
+    for (const row of rows) {
+      const email = row.responsavelEmail?.trim();
+      if (!email) {
+        ignorados += 1;
+        continue;
+      }
+      try {
+        const pessoa = await this.ensurePessoaImportacao({
+          edicaoId,
+          email,
+          cpfPreferido: row.responsavelCpf || undefined,
+          nome: row.responsavelNome || row.nomeStartup || 'Startup',
+          telefone: row.responsavelTelefone || undefined,
+          lgpdAceitoEm: row.lgpdAceitoEm || new Date(),
+        });
+
+        const needsLink =
+          row.pessoaId !== pessoa.id || row.pessoaId == null;
+        if (needsLink) {
+          await this.prisma.inscricaoStartup.update({
+            where: { id: row.id },
+            data: {
+              pessoaId: pessoa.id,
+              senhaHash: pessoa.senhaHash,
+            },
+          });
+          if (!row.pessoaId) provisionados += 1;
+          else atualizados += 1;
+        } else if (pessoa.mustChangePassword) {
+          await this.prisma.inscricaoStartup.update({
+            where: { id: row.id },
+            data: { senhaHash: pessoa.senhaHash },
+          });
+          atualizados += 1;
+        } else {
+          ignorados += 1;
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        erros.push(`${email}: ${msg}`);
+      }
+    }
+
+    return {
+      total: rows.length,
+      provisionados,
+      atualizados,
+      ignorados,
+      erros,
+      senhaTemporaria: SENHA_PADRAO_IMPORTACAO,
+    };
+  }
+
+  /** CPF sintético determinístico (11 dígitos) para importações sem CPF único. */
+  private async allocateImportCpf(edicaoId: string, email: string) {
+    const base = createHash('sha256')
+      .update(`premio-import:${edicaoId}:${email.toLowerCase()}`)
+      .digest('hex');
+    let digits = '';
+    for (const ch of base) {
+      if (digits.length >= 11) break;
+      if (ch >= '0' && ch <= '9') digits += ch;
+    }
+    while (digits.length < 11) digits += '0';
+    digits = digits.slice(0, 11);
+
+    for (let i = 0; i < 20; i++) {
+      const candidate =
+        i === 0
+          ? digits
+          : `${digits.slice(0, 8)}${String(i).padStart(3, '0')}`.slice(0, 11);
+      const taken = await this.pessoasService.findByCpf(edicaoId, candidate);
+      if (!taken) return candidate;
+    }
+
+    throw new ConflictException(
+      `Não foi possível gerar CPF de acesso para ${email}.`,
+    );
   }
 
   private readSpreadsheetRows(file: Express.Multer.File) {
