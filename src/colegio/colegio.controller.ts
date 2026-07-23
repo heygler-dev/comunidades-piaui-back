@@ -7,6 +7,7 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import { Transform } from 'class-transformer';
 import { IsOptional, IsUUID } from 'class-validator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -17,6 +18,7 @@ import { ColegioService } from './colegio.service';
 
 class ListIndicadasQuery {
   @IsOptional()
+  @Transform(({ value }) => (value === '' || value == null ? undefined : value))
   @IsUUID()
   categoriaId?: string;
 }

@@ -7,6 +7,8 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.enableCors();
+  // Evita 304 Not Modified em GET JSON (fetch pode receber body vazio).
+  app.getHttpAdapter().getInstance().set('etag', false);
   app.useStaticAssets(join(process.cwd(), 'uploads'), {
     prefix: '/uploads',
   });
